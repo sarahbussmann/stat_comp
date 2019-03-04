@@ -9,13 +9,11 @@ output:
 
 3.1
 Write a function that will generate and return a random sample of size n from the two-parameter exponential distribution $Exp(\lambda,n)$ for 
-arbitrary $\lambda,n$ (See Examples 2.3 and 2.6) Generate a large sample from $Exp(\lambda,n)$ and compare the sample quantiles with the theoretical quantiles.
+arbitrary $\lambda,n$ (See Examples 2.3 and 2.6)
+Generate a large sample from $Exp(\lambda,n)$ and compare the sample quantiles with the theoretical quantiles.
 ```{r}
-
-
 two_param_exp_cdf <- function(n, lambda){
   return(rexp(n = n, rate= lambda))
-  #return(     lamba*(exp(-lambda*(test_number-theta)))        )
 }
 
 samples=two_param_exp_cdf(n=10000,lambda=2)
@@ -23,14 +21,14 @@ hist(samples, breaks = 50, probability = TRUE)
 lambda=2
 test_number <- seq(-2, 2, 0.10)
 theta=0
-lines( test_number, lambda*(exp(-lambda*(test_number-theta))     )  )
-
+lines(test_number, lambda*(exp(-lambda*(test_number-theta))))
 ```
 
 
 3.2
 The standard Laplace distribution has density $f(x)=\frac{1}{2}e^{-|x|}$, $x \in R$. 
-Use the inverse transform method to generate a random sample of size 1000 from this distribution. Use one of the methods shown in this chapter to compare the generated sample to the target distribution.
+Use the inverse transform method to generate a random sample of size 1000 from this distribution.
+Use one of the methods shown in this chapter to compare the generated sample to the target distribution.
 ```{r}
 #interested in generating samples from a not-so-often-used distribution
 #The first step is to invert the CDF and create a function that computes it. 
@@ -39,7 +37,6 @@ test_number <- seq(-2, 2, 0.10)
 laplace_cdf <- function(test_number){
  answer=ifelse(test_number>0.00000, 1-((1/2)*exp(-test_number)),(1/2)*exp(test_number))
   return(answer)
-
 }
 
 inverse_laplace_cdf <- function(input){
@@ -49,14 +46,13 @@ inverse_laplace_cdf <- function(input){
 
 
 #inverse_laplace_cdf(laplace_cdf(test_number))
-
 #-log(-2*laplace_cdf(-2)+2)
 #log(2*laplace_cdf(-2))
 #test_number
 #ln(2X) inverse for x <0
 #-ln(-2x+2)
 ```
-Let's test that the inverse is correct:
+Let me test that the inverse is correct:
 ```{r}
 isTRUE( all.equal(inverse_laplace_cdf(laplace_cdf(test_number)), test_number) )
 ```
@@ -69,7 +65,7 @@ laplace_sample_function <- function(num_samples){
 }
 
 ```
-Let's test and make sure these samples match the distribution we wanted
+Testing to make sure these samples match the distribution that is wanted
 ```{r}
 lots_of_samples <- laplace_sample_function(1000)
 hist(lots_of_samples, breaks = 50, probability = TRUE)
@@ -160,7 +156,8 @@ cov(mvn_samples)
 ```
 
 3.7
-Write a function to generate a random sample of size n from the Beta(a,b) distribution by acceptance-rejection method. Generate a random sample of size 1000 from the Beta(3,2) distribution. Graph the histogram of the sample with the theoretical Beta(3,2) density superimposed.
+Write a function to generate a random sample of size n from the Beta(a,b) distribution by acceptance-rejection method. Generate a random sample of size 1000 from the Beta(3,2) distribution. 
+Graph the histogram of the sample with the theoretical Beta(3,2) density superimposed.
 ```{r}
 comparison_pdf <- function(input){
   return(1 / 10)
@@ -182,20 +179,14 @@ another_beta_sampler <- function(x){
       return(g_sample)
     }
   }
-  
-  
-  
 }
-
-
-
 ```
 
-Is the sampler is working?
+Is the sampler working?
 ```{r}
 another_beta_sampler()
 ```
-Comparing many samples with our expected distribution.
+Comparing many samples with the expected distribution.
 ```{r}
 lots_of_samples <- sapply(1:10000, FUN = another_beta_sampler)
 hist(lots_of_samples, breaks = 50, probability = TRUE)
