@@ -1,0 +1,205 @@
+---
+title: "Homework 2"
+author: "Sarah Bussmann"
+date: "March 2, 2019"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+3.1
+Write a function that will generate and return a random sample of size n from the two-parameter exponential distribution $Exp(\lambda,n)$ for 
+arbitrary $\lambda,n$ (See Examples 2.3 and 2.6) Generate a large sample from $Exp(\lambda,n)$ and compare the sample quantiles with the theoretical quantiles.
+```{r}
+
+
+two_param_exp_cdf <- function(n, lambda){
+  return(rexp(n = n, rate= lambda))
+  #return(     lamba*(exp(-lambda*(test_number-theta)))        )
+}
+
+samples=two_param_exp_cdf(n=10000,lambda=2)
+hist(samples, breaks = 50, probability = TRUE)
+lambda=2
+test_number <- seq(-2, 2, 0.10)
+theta=0
+lines( test_number, lambda*(exp(-lambda*(test_number-theta))     )  )
+
+```
+
+
+3.2
+The standard Laplace distribution has density $f(x)=\frac{1}{2}e^{-|x|}$, $x \in R$. 
+Use the inverse transform method to generate a random sample of size 1000 from this distribution. Use one of the methods shown in this chapter to compare the generated sample to the target distribution.
+```{r}
+#interested in generating samples from a not-so-often-used distribution
+#The first step is to invert the CDF and create a function that computes it. 
+test_number <- seq(-2, 2, 0.10)
+
+laplace_cdf <- function(test_number){
+ answer=ifelse(test_number>0.00000, 1-((1/2)*exp(-test_number)),(1/2)*exp(test_number))
+  return(answer)
+
+}
+
+inverse_laplace_cdf <- function(input){
+  answer=ifelse(test_number<0, log(2*input), (-log((-2*input)+2)) )
+  return(answer)
+}
+
+
+#inverse_laplace_cdf(laplace_cdf(test_number))
+
+#-log(-2*laplace_cdf(-2)+2)
+#log(2*laplace_cdf(-2))
+#test_number
+#ln(2X) inverse for x <0
+#-ln(-2x+2)
+```
+Let's test that the inverse is correct:
+```{r}
+isTRUE( all.equal(inverse_laplace_cdf(laplace_cdf(test_number)), test_number) )
+```
+
+Now to create a function that samples from uniform and apply the inverse
+```{r}
+laplace_sample_function <- function(num_samples){
+  uniform_sample <- runif(n = num_samples, min = 0, max = 1)
+  return(inverse_laplace_cdf(uniform_sample))
+}
+
+```
+Let's test and make sure these samples match the distribution we wanted
+```{r}
+lots_of_samples <- laplace_sample_function(1000)
+hist(lots_of_samples, breaks = 50, probability = TRUE)
+lines( test_number, exp(-abs(test_number))/2  )
+```
+```{r}
+
+```
+
+
+
+
+3.5
+A discrete random variable X has pmf (see book).
+Use the inverse transform method to generate a random sample of size 1000 from the distribution of X.
+Construct a relative frequency table and compare the empirical with the theoretical probabilities.
+Repeat using the R sample function.
+```{r}
+my_function <- function(sample_size, probability_vector){
+  uniform_sample <- runif(sample_size, min=0, max=1) 
+  X <- rep(0,sample_size)
+  # which uniform samples are in the first interval
+  one <- which(uniform_sample <= probability_vector[1])
+  X[one] <- 0
+  # which uniform samples are in the second interval
+  two <- which( (uniform_sample > probability_vector[1]) & (uniform_sample < sum(probability_vector[1:2])) )
+  X[two] <- 1
+  # which uniform samples are in the third interval
+  three <- which( (uniform_sample > sum(probability_vector[1:2])) & (uniform_sample < sum(probability_vector[1:3])) )
+  X[three] <- 2
+  # which uniform samples are in the fourth interval
+  four <- which( (uniform_sample > sum(probability_vector[1:3])) & (uniform_sample < sum(probability_vector[1:4])) )
+  X[four] <- 3
+  # which uniform samples are in the fifth interval
+  five <- which( uniform_sample > sum(probability_vector[1:4]) )
+  X[five] <- 4
+  return(X)
+}
+
+X=my_function(1000, c(.1,.2,.2,.2,.3))
+X
+
+mean(X==0)
+mean(X==1)
+mean(X==2)
+mean(X==3)
+mean(X==4)
+#very close to empirical probabilities
+
+barplot(table(X), main = "True Probability Mass Function", ylim = c(0,350))
+
+```
+
+Now using the R sample function.
+```{r}
+sample_pmf=sample(0:4,size=1000,replace=TRUE, prob=c(.1,.2,.2,.2,.3))
+freq_table=table(sample_pmf)/1000
+freq_table
+barplot(table(sample_pmf), main = "Empirical Probability Mass Function", ylim = c(0,350))
+```
+
+3.14
+Generate 200 random observations from the 3-dimensional multivariate normal distribution having mean vector $\mu=(0,1,2)$ and covariance matrix (in book) using the Choleski factorization method. 
+Use the R pairs plot to graph an array of scatter plots for each pair of variables.
+For each pair of variables, (visually) check that the location and correlation approximately agree with the theoretical parameters of the corresponding bivariate normal distribution.
+
+Multivariate normal sampler. Sample from (x,y,z) where normal variables with covariance matrix given and mean (0, 1, 2) respectively.
+```{r}
+
+mvn_mean <- c(0, 1, 2)
+covar_matrix_3 <- matrix(nrow = 3, ncol = 3, data = c(1, -0.5, 0.5, -.5,1,-.5,.5,-.5,1))
+num_samples <- 200
+
+```
+Choleski decomposition
+```{r}
+chol_decomp <- chol(covar_matrix_3, pivot = TRUE, tol = 0.00000000000001)
+mean_matrix <- matrix(data = mvn_mean, ncol = 3, nrow = 200, byrow = TRUE)
+normal_samples <- matrix(data = rnorm(3 * 200, 0, 1), ncol = 3, nrow = 200)
+mvn_samples <- normal_samples %*% chol_decomp + mean_matrix
+```
+Plotting the samples
+```{r}
+pairs(mvn_samples)
+colMeans(mvn_samples)
+cov(mvn_samples)
+#Location and Correlation look like they agree with theoretical parameters
+```
+
+3.7
+Write a function to generate a random sample of size n from the Beta(a,b) distribution by acceptance-rejection method. Generate a random sample of size 1000 from the Beta(3,2) distribution. Graph the histogram of the sample with the theoretical Beta(3,2) density superimposed.
+```{r}
+comparison_pdf <- function(input){
+  return(1 / 10)
+}
+
+beta_pdf <- function(input){
+  return(((1-input)*(input)^2))
+}
+acceptance_rate <- 1 / 10
+c <- 1 / acceptance_rate
+
+another_beta_sampler <- function(x){
+
+  while(TRUE){
+    g_sample <- runif(n = 1, 0, 10)
+    uniform_sample <- runif(n = 1, 0, 1)
+    
+    if(uniform_sample < beta_pdf(g_sample) / (c * comparison_pdf(g_sample))){
+      return(g_sample)
+    }
+  }
+  
+  
+  
+}
+
+
+
+```
+
+Is the sampler is working?
+```{r}
+another_beta_sampler()
+```
+Comparing many samples with our expected distribution.
+```{r}
+lots_of_samples <- sapply(1:10000, FUN = another_beta_sampler)
+hist(lots_of_samples, breaks = 50, probability = TRUE)
+test_number <- seq(0, 10, 0.01)
+lines( test_number, 10*(1-test_number)*(test_number)^2)
+```
+
