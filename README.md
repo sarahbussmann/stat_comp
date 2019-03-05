@@ -1,2 +1,2 @@
 # stat_comp
-Code I created to help me learn Statistical Computing!
+Code I created to help me learn Statistical Computation!
