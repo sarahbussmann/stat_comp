@@ -1,0 +1,388 @@
+---
+title: "Homework 3"
+author: "Sarah Bussmann"
+date: "March 24, 2019"
+output: html_document
+---
+
+
+#5.10
+Use MC integration with antithetic variables to estimate $\int_{0}^1 \frac{e^{-x}}{1+x^{2}} dx$ and find the approximate reduction in variance as a percentage of the variance without reduction.
+```{r}
+my_func <- function(x){
+  return(exp(-x)/(1+x^{2}))
+}
+
+mc_estimate <- function(func_to_integrate, lower_bound, upper_bound, num_samples){
+  unif_samples <- runif(num_samples, lower_bound, upper_bound)
+  return( mean(func_to_integrate(unif_samples)) )
+}
+
+mc_estimate(my_func, 0, 1, 1000)
+
+#looking at variance/se
+mc_values <- replicate(1000, mc_estimate(my_func, 0, 1, 1000))
+hist(unlist(mc_values))
+var(mc_values)
+
+var_of_func <- function(input_function, num_samples, lower_bound = 0, upper_bound = 1){
+  unif_samples <- runif(num_samples, lower_bound, upper_bound)
+  return(var(input_function(unif_samples)))
+}
+
+var_of_func(my_func, 1000, 0, 1)
+
+#antithetic variables
+antithetic_mc_estimate <- function(func_to_integrate, lower_bound, upper_bound, num_samples){
+  unif_samples <- runif(num_samples, lower_bound, upper_bound)
+  anti_samples <- 1 - unif_samples
+  unif_estimate <- mean(func_to_integrate(unif_samples))
+  anti_estimate <- mean(func_to_integrate(anti_samples))
+  return(mean(c(unif_estimate, anti_estimate)))
+}
+
+mc_values <- replicate(1000, mc_estimate(my_func, 0, 1, 1000))
+anti_mc_values <- replicate(1000, antithetic_mc_estimate(my_func, 0, 1, 500))
+var(anti_mc_values)
+var(mc_values)
+
+#%reduction
+100*((var(anti_mc_values)-var(mc_values))/var(mc_values))
+
+```
+
+#5.14
+Obtain a MC estimate of $\int_{1}^\infty e^{-x^2/2} \frac{x^2}{\sqrt{2\pi}} dx$ by importance sampling.
+
+```{r}
+some_ftn <- function(x) x^2/dnorm(x, mean=0, sd=1)
+std_norm <- function(x) (exp(-x^2/2)*(1/sqrt(2*pi))*(x>0))
+samples=rnorm(1000,mean=0,sd=1)
+one_estimate=some_ftn(samples)*std_norm(samples)
+mean(one_estimate)
+
+num_replicates=1000
+replicator_ftn <- replicate(num_replicates, {
+  samples=rnorm(1000,mean=0,sd=1)
+  estimate <- some_ftn(samples)*std_norm(samples)
+  return(estimate)
+})
+
+mean(replicator_ftn)
+```
+
+Ignore this chunk.
+```{r}
+#x<-runif(n=1000,0,1) ## samples
+#fx<-function(x){
+#  return(exp(-x^2/2)*(x^2/sqrt(2*pi))*(x>0)) #target distribution
+#}
+#distribution to sample
+#gx<-function(x){
+#  return(exp(-x^2/2)*(1/sqrt(2*pi))*(x>0))
+#}
+#Ex=mean(fx(x)/gx(x))
+#Ex
+```
+
+
+#6.2
+Plot the empirical power curve for the t-test in Example 6.9, changing the alternative hypothesis to $H_1: \mu \neq 500$, and keeping the significance level $\alpha$ = .05.\
+$H_0: \mu = 500$\
+$H_1: \mu \neq 500$
+
+```{r}
+#In order to plot this, I need the empirical power for a sequence of altern. thetas (mu) along the x axis
+#each point corresponds to a MC experiment
+#the outer for loop varies mu and the inner replicate loop estimates the power at the current mu
+n=20
+rep=1000
+mu0=500
+sigma=100
+mu=c(seq(450,650,10)) #alternative mus
+len_mu=length(mu)
+power=numeric(len_mu)
+for (i in 1:len_mu) {
+  mu1=mu[i]
+  pvalues=replicate(rep,expr={
+    #simulate under alternative mu1
+    x=rnorm(n, mean=mu1, sd=sigma)
+    ttest=t.test(x, alternative = "two.sided", mu=mu0)
+    ttest$p.value
+    })
+  power[i]=mean(pvalues <= .05) #proportion of null being rejected
+}
+
+
+#plotting
+library(Hmisc)
+plot(mu, power)
+abline(v=mu0, lty=1)
+abline(h=.05, lty=1)
+#adding standard errors
+se=sqrt(power*(1-power)/rep)
+errbar(mu,power,yplus=power+se,yminus=power-se,xlab=bquote(theta))
+lines(mu, power, lty=3)
+
+
+```
+
+#7.4
+Refer to the air conditioning dataset aircondit provided in the boot package.
+The 12 observations are the times in hours between failures of air-conditioning equipment: 3,5,7,18,43,85,91,98,100,130,230,487.
+Assume that the times between failures follow an exponential model $Exp(\lambda)$. \
+Obtain the MLE of the hazard rate $\lambda$ and use bootstrap to estimate the bias and standard error of the estimate.
+```{r}
+#the lambda(hat) estimate is just the recriprocal of the sample mean
+sample_mean= sum(3+5+7+18+43+85+91+98+100+130+230+487)/12
+lambda_estimate=1/sample_mean
+data=c(3,5,7,18,43,85,91,98,100,130,230,487)
+#now let me bootstrap this lambda estimate to estimate the bias and se
+
+num_replicates <- 1000
+bootstrap_estimates <- replicate(num_replicates, {
+  boot_samples <- sample(data, size = 12, replace = TRUE)
+  1/(sum(boot_samples)/12)
+})
+hist(bootstrap_estimates, prob = TRUE, breaks = 30)
+print(c("Standard Error Estimate:", sd(bootstrap_estimates)))
+#bias
+bootstrap_bias <- mean(bootstrap_estimates - lambda_estimate)
+bootstrap_bias
+
+```
+
+#7.5
+Refer to exercise 7.4. Compute a 95% bootstrap CI for the mean time between failures $1/\lambda$ by the standard normal, basic, percentile and BCa methods. \
+Compare the intervals and explain why they may differ.
+```{r}
+library("boot")
+boot_data=c(3,5,7,18,43,85,91,98,100,130,230,487)
+num_replicates <- 1000
+estimates <- function(data, indices){
+  return(mean(1/(sum(data[indices])/12)))
+}
+data.boot <- boot(boot_data, estimates, R = 1000)
+normal_interval=boot.ci(data.boot, type = c("norm"))
+normal_interval
+basic_interval=boot.ci(data.boot, type = c("basic"))
+basic_interval
+percent_interval=boot.ci(data.boot, type = c("perc"))
+percent_interval
+BCa_interval=boot.ci(data.boot, type = c("bca"))
+BCa_interval
+
+```
+The normal CI is [-.0005, .0166]\
+The basic CI is [-.0038, .0133]\
+The percentile CI is [.0052, .0223]\
+The BCa CI is [.0048, .0184]\
+\
+The value of $1/\lambda$ from the sample mean is .00925212.\
+The normal confidence interval assumes symmetry about the (bias-corrected) mean. The exponential distribution isn't symmetric, so I am guessing this is why the normal confidence interval has some negative values involved.\
+
+The basic method is not using the raw bootstrap distribution quantiles. It is only using bootstrap estimates of the bias and variance and assuming a normal approx in the process. Since the boostrap distribution is skewed, the basic method is not as small of an interval as the percentile or BCa methods.\
+
+The percentile and BCa intervals are smaller because these confidence intervals are based on bootstrapping. They are biased from the sample values. Because of this bias, they are smaller intervals, positive numbers only and reach further from .0092512 than the other intervals.\
+
+The percentile interval is positive. This makes sense because it is a CI for the boostrap of the target parameter $1/\lambda$ and $\lambda$ is positive in a Exponential distribution.\
+
+The BCa interval handles non-symmetrical distributions. If the distribution was symmetric, then the bias would equal 0 and the BCa and percentile intervals would equal. So in this case, the distribution isn't symmetrical because the BCa and percentile CI's are different. The BCa interval is also smaller than the percentile.\
+
+
+#Project 6A
+Use Monte Carlo simulation to investigate whether the empirical Type 1 error rate of the t-tests is approximately equal to the nominal significance level $\alpha$, when the sampled population is non-normal. The t-test is robust to mild departures from normality. Discuss the simulation results for the cases where the sampled population is \
+i) $X^2(1)$\
+ii) $Uniform(0,2)$\
+iii) $Exponential(rate=1)$.\
+In each case, test $H_0: \mu = \mu_{0}$ vs  $H_1: \mu \neq \mu_{0}$, where $\mu_{0}$ is the mean of $X^2(1)$, $Uniform(0,2)$, and $Exponential(1)$, respectively.
+
+
+#Chisquare
+```{r}
+sig_level=.05
+num_samples=50
+true_mean_chisq=1
+
+test_the_t_test=function(num_samples, sig_level, true_mean_chisq){
+chisquare_samples=rchisq(n, df=1)
+t.test(chisquare_samples, alternative="two.sided", mu=true_mean_chisq)$p.value < sig_level
+}
+
+type_1_error=replicate(1000,expr={test_the_t_test(num_samples, sig_level, true_mean_chisq)})
+error_rate=mean(type_1_error)
+#so it did incorrectly pass 5% of the time 
+#this will always be about 5%
+standard_error=sqrt(error_rate*(1-error_rate)/ num_samples)
+error_rate
+standard_error
+
+#let me try a different alpha
+sig_level=.10
+test_the_t_test=function(num_samples, sig_level, true_mean_chisq){
+chisquare_samples=rchisq(n, df=1)
+t.test(chisquare_samples, alternative="two.sided", mu=true_mean_chisq)$p.value < sig_level
+}
+
+type_1_error=replicate(1000,expr={test_the_t_test(num_samples, sig_level, true_mean_chisq)})
+error_rate=mean(type_1_error)
+standard_error=sqrt(error_rate*(1-error_rate)/ num_samples)
+error_rate
+standard_error
+```
+
+Let me see how this changes as the number of samples change with .05 significance.
+
+```{r}
+true_mean = 1
+num_samples = 30
+sig_level=.05
+
+test_the_t_test <- function(num_samples, true_mean, significance_level){
+  sample_data <- rchisq(num_samples, df=1)
+  t.test(sample_data, alternative = "two.sided", mu = true_mean)$p.value < sig_level
+}
+
+error_estimates <- lapply(2:100, FUN = function(x) {
+  type_1_error <- replicate(10000, expr = {test_the_t_test(x, true_mean, sig_level)})
+error_rate <- mean(type_1_error)
+standard_error <- sqrt(error_rate* (1 - error_rate) / num_samples )
+  return(data.frame(error_rate, standard_error))
+})
+
+```
+
+```{r}
+plot(2:100, unlist(lapply(error_estimates, function(x) return(x[[1]]))), main = "T Test Type I Error for Chisquare Distribution, alpha = 0.05",
+     xlab = "Number of Samples from Chisquare Distribution", ylab = "Type I Error Rate")
+```
+\
+As the number of samples increase, the Type 1 Error Rate approaches the significan level of .05. Although it is hovering more closely around .06 for 100 samples. So like the exponential, as n increases this will eventually approach .05 and then approach 0 as n goes to infinity.
+
+
+#Uniform
+```{r}
+sig_level=.05
+num_samples=50
+true_mean_unif=.5
+
+test_the_t_test=function(num_samples, sig_level, true_mean_unif){
+uniform_samples=runif(n, min=0, max=1)
+t.test(uniform_samples, alternative="two.sided", mu=true_mean_unif)$p.value < sig_level
+}
+
+type_1_error=replicate(1000,expr={test_the_t_test(num_samples, sig_level, true_mean_unif)})
+error_rate=mean(type_1_error)
+standard_error=sqrt(error_rate*(1-error_rate)/ num_samples)
+error_rate
+standard_error
+
+#let me try a different alpha
+sig_level=.10
+test_the_t_test=function(num_samples, sig_level, true_mean_unif){
+uniform_samples=runif(n, min=0, max=1)
+t.test(uniform_samples, alternative="two.sided", mu=true_mean_unif)$p.value < sig_level
+}
+
+type_1_error=replicate(1000,expr={test_the_t_test(num_samples, sig_level, true_mean_unif)})
+error_rate=mean(type_1_error)
+standard_error=sqrt(error_rate*(1-error_rate)/ num_samples)
+error_rate
+standard_error
+```
+
+Let me see how this changes as the number of samples change with .05 significance.
+
+```{r}
+true_mean = .5
+num_samples = 30
+sig_level=.05
+
+test_the_t_test <- function(num_samples, true_mean, significance_level){
+  sample_data <- runif(num_samples)
+  t.test(sample_data, alternative = "two.sided", mu = true_mean)$p.value < sig_level
+}
+
+error_estimates <- lapply(2:100, FUN = function(x) {
+  type_1_error <- replicate(10000, expr = {test_the_t_test(x, true_mean, sig_level)})
+error_rate <- mean(type_1_error)
+standard_error <- sqrt(error_rate* (1 - error_rate) / num_samples )
+  return(data.frame(error_rate, standard_error))
+})
+
+```
+
+```{r}
+plot(2:100, unlist(lapply(error_estimates, function(x) return(x[[1]]))), main = "T Test Type I Error for Uniform Distribution, alpha = 0.05",
+     xlab = "Number of Samples from Uniform Distribution", ylab = "Type I Error Rate")
+```
+\
+The empirical uniform is definitely close to the significance level of .05.
+
+
+
+#Exponential
+```{r}
+sig_level=.05
+num_samples=50
+true_mean_exp=1
+
+test_the_t_test=function(num_samples, sig_level, true_mean_exp){
+exponential_samples=rexp(n, rate=1)
+t.test(exponential_samples, alternative="two.sided", mu=true_mean_exp)$p.value < sig_level
+}
+
+type_1_error=replicate(1000,expr={test_the_t_test(num_samples, sig_level, true_mean_exp)})
+error_rate=mean(type_1_error)
+standard_error=sqrt(error_rate*(1-error_rate)/ num_samples)
+error_rate
+standard_error
+
+#let me try a different alpha
+sig_level=.10
+test_the_t_test=function(num_samples, sig_level,true_mean_exp){
+exponential_samples=rexp(n, rate=1)
+t.test(exponential_samples, alternative="two.sided", mu=true_mean_exp)$p.value < sig_level
+}
+
+type_1_error=replicate(1000,expr={test_the_t_test(num_samples, sig_level,true_mean_exp)})
+error_rate=mean(type_1_error)
+standard_error=sqrt(error_rate*(1-error_rate)/ num_samples)
+error_rate
+standard_error
+
+```
+Let me see how this changes as the number of samples change with .05 significance.
+
+```{r}
+true_mean = 1
+lambda_param <- 1 / true_mean
+num_samples = 30
+sig_level=.05
+
+test_the_t_test <- function(num_samples, true_mean, significance_level){
+  sample_data <- rexp(num_samples, rate = lambda_param)
+  t.test(sample_data, alternative = "two.sided", mu = true_mean)$p.value < sig_level
+}
+
+error_estimates <- lapply(2:100, FUN = function(x) {
+  type_1_error <- replicate(10000, expr = {test_the_t_test(x, true_mean, sig_level)})
+error_rate <- mean(type_1_error)
+standard_error <- sqrt(error_rate* (1 - error_rate) / num_samples )
+  return(data.frame(error_rate, standard_error))
+})
+
+```
+
+```{r}
+plot(2:100, unlist(lapply(error_estimates, function(x) return(x[[1]]))), main = "T Test Type I Error for Exponential Distribution, alpha = 0.05",
+     xlab = "Number of Samples from Exponential Distribution", ylab = "Type I Error Rate")
+```
+
+\
+As the number of samples increase, the Type 1 Error Rate approaches the significan level of .05. Although it is hovering more closely around .06.
+
+
+
+Estimates of the Type 1 error probabilities vary, but they are close to the nominal significance level. It appears that when n<=50, there are enough samples to have the t-test work (even though the distributions are non-normal) and the Type 1 error rate is close to the nominal significance level. The sample mean's distribution (in repeated samples) converges to a normal distribution, so the assumption of normality that the t-test uses works.
+In addition, the estimator that the t-test uses for the standard error of the sample means is consistent, regardless of the distribution of the sample, and so this too is unaffected. So the test statistic continues to follow a N(0,1) distribution under the null hypothesis when the sample size tends to infinity.
